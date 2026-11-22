@@ -1,0 +1,242 @@
+// Verbatim Protocol Buffer Schema reconstructed from binary offset 0x18399
+// Source File: assistant/boq/lamda/execution_box/sandbox_interface/sandbox_rpc.proto
+
+edition = "2023";
+
+package sandbox_interface;
+
+import "google/protobuf/any.proto";
+
+enum ExitStatus {
+  OK = 0;
+  UNKNOWN = 2;
+  KILLED = 9;
+  INTERNAL = 13;
+  COULD_NOT_EXECUTE = 100;
+  MODULE_NOT_FOUND = 101;
+  BANNED_RESPONSE = 102;
+  RECURSION_ERROR = 103;
+  FILE_NOT_FOUND = 104;
+  KEY_ERROR = 105;
+  VALUE_ERROR = 106;
+  TYPE_ERROR = 107;
+  ATTRIBUTE_ERROR = 108;
+  NAME_ERROR = 109;
+  SYNTAX_ERROR = 110;
+  CODE_EXECUTION_TIMED_OUT = 111;
+  ALTAIR_SCHEMA_VALIDATION_ERROR = 112;
+  TOOL_OPERATION_ERROR = 113;
+  INDEX_ERROR = 114;
+  ZERO_DIVISION_ERROR = 115;
+}
+
+enum ConstraintViolation {
+  CONSTRAINT_VIOLATION_UNKNOWN = 0;
+  CONTAINER_OOM = 1;
+  CONSTRAINT_CODE_EXECUTION_TIMED_OUT = 2;
+}
+
+enum Language {
+  LANGUAGE_UNKNOWN = 0;
+  PYTHON = 1;
+  JAVASCRIPT = 2;
+  SH = 3;
+}
+
+message RunToolRequest {
+  string name = 1;
+  string operation_id = 2;
+  string parameters = 3;
+  int32 execution_index = 4;
+}
+
+message ToolAgentInput {
+  string tool_name = 1;
+  string operation_id = 2;
+  string tool_instruction = 3;
+}
+
+message RunToolResponse {
+  message Status {
+    int32 code = 1;
+    string status_message = 2;
+  }
+
+  string response = 1;
+  Status status = 2;
+}
+
+message StubbyForwardingRequest {
+  string service_name = 1;
+  string method_name = 2;
+  google.protobuf.Any request = 3;
+}
+
+message StubbyForwardingResponse {
+  message Status {
+    int32 code = 1;
+    string status_message = 2;
+  }
+
+  Status status = 2;
+  google.protobuf.Any response = 1;
+}
+
+message RpcRequest {
+  string id = 3;
+  bool quiesced = 6;
+  oneof request {
+    RunToolRequest run_tool_request = 1;
+    ToolAgentInput run_tool_agent_request = 2;
+    StubbyForwardingRequest stubby_forwarding_request = 4;
+    google.protobuf.Any client_defined_request = 5;
+  }
+}
+
+message RpcResponse {
+  string request_id = 2;
+  oneof response {
+    RunToolResponse run_tool_response = 1;
+    StubbyForwardingResponse stubby_forwarding_response = 3;
+    google.protobuf.Any client_defined_response = 4;
+  }
+}
+
+message FileContents {
+  string file_name = 1;
+  bytes file_bytes = 2;
+}
+
+message RunAsIds {
+  uint32 uid = 1;
+  uint32 gid = 2;
+  repeated uint32 groups = 3;
+}
+
+message ExecuteCodeRequest {
+  message EnvVariablesEntry {
+    string key = 1;
+    string value = 2;
+  }
+
+  string code = 1;
+  repeated EnvVariablesEntry env_variables = 3;
+  repeated FileContents input_files = 9;
+  bool file_io_handled_by_sandbox_orchestrator = 10;
+  bool export_changed_files = 16;
+  oneof interpreter {
+    bool embedded_interpreter = 5;
+    bool main_interpreter = 6;
+    string interpreter_shell_command = 4;
+    string stateful_interpreter_name = 11;
+    string dynamic_interpreter_id = 12;
+  }
+  oneof run_as {
+    string username = 14;
+    RunAsIds run_as_ids = 15;
+  }
+}
+
+message ExecuteCodeResponse {
+  message ErrorPayloadsEntry {
+    string key = 1;
+    bytes value = 2;
+  }
+
+  string msg_out = 1;
+  string msg_err = 2;
+  ExitStatus exit_status = 3;
+  int32 exit_status_int = 5;
+  repeated ErrorPayloadsEntry error_payloads = 4;
+  ConstraintViolation constraint_violation = 6;
+  repeated FileContents output_files = 7;
+  bool container_killed_on_timeout = 8;
+}
+
+message ReadyToExecute {
+  StartupErrors startup_errors = 1;
+  bool using_socket_io = 2;
+}
+
+message StartupErrors {
+  string internet_setup_error_message = 1;
+}
+
+message CheckReady {
+}
+
+message Shutdown {
+}
+
+message NonUserError {
+  string error_message = 1;
+}
+
+message StartInterpreterRequest {
+  string prewarm_snippet = 3;
+  string interpreter_id = 6;
+  oneof interpreter_type {
+    string interpreter_path = 1;
+    bool use_embedded_interpreter = 2;
+  }
+  oneof run_as {
+    string username = 4;
+    RunAsIds run_as_ids = 5;
+  }
+}
+
+message StartInterpreterResponse {
+  oneof result {
+    string interpreter_id = 1;
+    string error = 2;
+  }
+}
+
+message StopInterpreterRequest {
+  string interpreter_id = 1;
+}
+
+message StopInterpreterResponse {
+  string error = 1;
+}
+
+message ListInterpretersRequest {
+}
+
+message DynamicInterpreter {
+  string interpreter_id = 1;
+  StartInterpreterRequest original_request = 2;
+}
+
+message ListInterpretersResponse {
+  repeated DynamicInterpreter interpreters = 1;
+  string error = 2;
+}
+
+message SandboxIn {
+  oneof message_in {
+    CheckReady check_ready = 4;
+    ExecuteCodeRequest execute_code_request = 1;
+    Shutdown shutdown = 2;
+    StartInterpreterRequest start_interpreter_request = 5;
+    StopInterpreterRequest stop_interpreter_request = 6;
+    ListInterpretersRequest list_interpreters_request = 7;
+  }
+}
+
+message SandboxOut {
+  oneof message_out {
+    ReadyToExecute ready_to_execute = 1;
+    ExecuteCodeResponse execute_code_response = 2;
+    NonUserError non_user_error = 3;
+    StartInterpreterResponse start_interpreter_response = 4;
+    StopInterpreterResponse stop_interpreter_response = 5;
+    ListInterpretersResponse list_interpreters_response = 6;
+  }
+}
+
+message RpcPayload {
+  string call = 1;
+  google.protobuf.Any payload = 2;
+  string id = 3;
+}

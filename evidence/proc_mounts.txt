@@ -1,0 +1,7 @@
+none / overlay rw,mode=777 0 0
+none /dev dev rw,mode=0755 0 0
+none /sys sysfs rw,dentry_cache_limit=1000 0 0
+none /proc proc rw,dentry_cache_limit=1000 0 0
+none /tmp tmpfs rw,mode=1777,uid=0,gid=0 0 0
+none /dev/pts devpts rw 0 0
+none /workspace 9p rw,trans=fd,rfdno=9,wfdno=9,aname=/workspace,dfltuid=1000,dfltgid=1000,dcache=1000,cache=remote_revalidating,disable_file_handle_sharing 0 0
