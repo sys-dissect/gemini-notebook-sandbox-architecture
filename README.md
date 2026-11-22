@@ -1,8 +1,42 @@
 # Gemini Notebook Systems Architecture: Empirical Sandbox Dissection
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](#reproducing-the-measurements)
+
 > Google engineered the agent workbench. We audited the syscalls, orchestrator binaries, and virtualization cage.
 
 Independent black-box verification and empirical systems measurements of Google's **Gemini Notebook / NotebookLM** execution sandbox (`sandbox_orchestrator`), with runtime telemetry, binary reverse-engineering, and protocol buffer schema reconstructions extracted directly from inside the live workload cell.
+
+---
+
+## Contents
+
+- [Key Findings at a Glance](#key-findings-at-a-glance)
+- [Executive Summary](#executive-summary)
+- [Provenance Framework & Classification](#provenance-framework--classification)
+- [Architectural Topography](#architectural-topography)
+- [Research Tracks](#research-tracks)
+- [Comparative Matrix](#comparative-matrix-google-jules-vs-gemini-spark-vs-gemini-notebook-vs-meta-muse)
+- [Repository Structure](#repository-structure)
+- [Reproducing the Measurements](#reproducing-the-measurements)
+- [Methodology & Safety](#methodology--safety)
+- [About sys-dissect](#about-sys-dissect)
+- [License & Attribution](#license--attribution)
+
+---
+
+## Key Findings at a Glance
+
+| Finding | Measurement |
+| :--- | :--- |
+| Syscall trap latency (`getpid`) | ~1.2 µs, roughly 10× native |
+| 9P `stat` penalty vs tmpfs | ~12.7× slower (41.79 µs vs 3.30 µs) |
+| 9P 4K random read vs tmpfs | ~3.5× slower (15.62 µs vs 4.43 µs) |
+| Memory ceiling | ~7.8 GiB usable of 8 GiB advertised; the container is recycled from outside, no `ENOMEM` |
+| Orchestrator binary | 13.8 MB unstripped Go binary, 16,958 symbols, full DWARF |
+| Host control channel | TCP `192.168.1.1:8888`, length-prefixed protobuf, reachable only from the host gateway `169.254.1.1` |
+| `ptrace` | Yama scope 1; attaching to PID 1 fails `EPERM`, child tracing works |
+| Base image | Debian 12 (Bookworm), 661 packages, Python 3.12 |
+| Network egress | Zero routes; outbound connections fail `ENETUNREACH` |
 
 ---
 
@@ -108,11 +142,11 @@ All statements, measurements, and logs in this study are categorized according t
 
 The dissection is organized across three primary tracks:
 
-* 📁 **[Part 1: The Cage — Sandbox Confinement, Storage & Syscall Mediation](part1-the-cage/)**:
+* **[Part 1: The Cage — Sandbox Confinement, Storage & Syscall Mediation](part1-the-cage/)**:
   User-space system call virtualization via gVisor (Sentry), behavioral indicators consistent with the `systrap` platform engine (~1.2 µs trap latency; Tier 2 inference), CPUID leaf `0x40000000` masking, Plan 9 (9P) Gofer descriptor mediation (FD 9), `mmap`/`msync` page cache coherency benchmarks (56.3 µs), symlink escape containment, and zero-route air-gap isolation.
-* 📁 **[Part 2: The Machinery — Binary Architecture, Orchestrator Lifecycle & IPC](part2-the-machinery/)**:
+* **[Part 2: The Machinery — Binary Architecture, Orchestrator Lifecycle & IPC](part2-the-machinery/)**:
   The monolithic Go binary (`/usr/bin/entry/entry_point`) from Google3 (`assistant/boq/lamda/execution_box`), dual-role `os.Args` dispatch (`interpreter_callback`), in-guest Unix domain socket actuation harness (`cb.sock`), `poll`/`cut` synchronization stubs, and full inventory of the 661-package Debian Bookworm document synthesis workbench.
-* 📁 **[Part 3: The Mind — Wire Protocol, Protobuf Schemas & Security Boundary](part3-the-mind/)**:
+* **[Part 3: The Mind — Wire Protocol, Protobuf Schemas & Security Boundary](part3-the-mind/)**:
   Verbatim reconstructed Google3 `sandbox_rpc.proto` schema (in `editions` syntax), length-prefixed binary wire framing, granular error discriminators (`ALTAIR_SCHEMA_VALIDATION_ERROR`, `CONTAINER_OOM`), Yama LSM relational attachment enforcement (`ptrace_scope = 1`), and capability bitmask analysis.
 
 ---
@@ -173,6 +207,22 @@ The dissection is organized across three primary tracks:
 ├── evidence/                            # Unified diagnostic logs (mirrors procfs & system dumps)
 └── scripts/                             # Complete test suite (mirrors all reproduction probes)
 ```
+
+---
+
+## Reproducing the Measurements
+
+The probe scripts in `scripts/` (mirrored under `part1-the-cage/scripts/`) are standalone Python 3 and are meant to run **inside a NotebookLM execution cell**, not on a local machine — they measure the sandbox they run in. From the cell, run any probe directly, for example:
+
+```
+python3 scripts/probe_systrap_kvm.py
+python3 scripts/probe_ptrace_scope.py
+python3 scripts/probe_9p_fs.py
+python3 scripts/probe_mmap_msync.py
+python3 scripts/probe_symlink_traversal.py
+```
+
+The `evidence/` captures are raw `procfs` snapshots from the same session; the `part2-the-machinery/data/` files are the package manifests and install history. The `sandbox_rpc.proto` schema in `part3-the-mind/schemas/` is a reconstruction from the binary's embedded `FileDescriptorProto`, not a file shipped in the image.
 
 ---
 
